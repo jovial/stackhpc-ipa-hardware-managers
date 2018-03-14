@@ -38,7 +38,7 @@ def _get_lspci_output(vendor_id=None, device_id=None, **kwargs):
     try:
         lspci_output, _e = utils.execute(
             "lspci -vmmnD {filter}".format(filter=device_filter_arg), **kwargs)
-    except (processutils.ProcessExecutionError, OSError) as e:
+    except (processutils.ProcessExecutionError, OSError):
         raise errors.CleaningError("Unable to run lspci")
     return lspci_output
 
@@ -104,7 +104,7 @@ def _get_ethtool_output(dev, **kwargs):
         ethtool_output, _e = utils.execute(
             "ethtool -i {device}".format(device=dev),
             **kwargs)
-    except (processutils.ProcessExecutionError, OSError) as e:
+    except (processutils.ProcessExecutionError, OSError):
         raise errors.CleaningError("Unable to run ethtool")
     return ethtool_output
 
@@ -119,7 +119,7 @@ def _get_ethtool_field(ethtool_output, field):
 def _get_expected_property(node, node_property):
     try:
         expected_property = node[node_property]
-    except KeyError as e:
+    except KeyError:
         raise errors.CleaningError(
             "Expected property '{0}' not found. You should make sure all items"
             " in the nic_firmware list contain {0}".format(node_property))
