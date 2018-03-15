@@ -73,6 +73,10 @@ def get_ethtool_output():
 
 class TestSystemNIC(unittest.TestCase):
 
+    def test_get_base_in_relative_path(self):
+        result = system_nic._get_base_in_relative_path("one/two/three")
+        self.assertEqual("one", result)
+
     def test_parse_lspci_multi(self):
         lspci_output = get_lspci_output_multi()
         devices = system_nic._parse_lspci_output(lspci_output)

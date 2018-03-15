@@ -67,11 +67,7 @@ def _get_base_in_relative_path(path):
     # returns one
     if os.path.isabs(path):
         raise ValueError("path must be relative")
-    dirname = os.path.dirname(path)
-    if dirname == "":
-        return path
-    else:
-        return _get_base_in_relative_path(dirname)
+    return path.split(os.sep)[0]
 
 
 def _pci_addr_to_net_interface(pci_addr):
