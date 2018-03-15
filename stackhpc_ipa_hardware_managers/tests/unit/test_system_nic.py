@@ -52,7 +52,7 @@ def get_dummy_node_info_version_mismatch():
 
 
 def get_lspci_output_multi():
-    with open(os.path.join(TEST_DIR, "data/lspci.output"), 'r') as f:
+    with open(os.path.join(TEST_DIR, "data/lspci.output"), "r") as f:
         return f.read()
 
 
@@ -67,7 +67,7 @@ def get_lspci_output_one_match():
 
 
 def get_ethtool_output():
-    with open(os.path.join(TEST_DIR, "data/ethtool.output"), 'r') as f:
+    with open(os.path.join(TEST_DIR, "data/ethtool.output"), "r") as f:
         return f.read()
 
 
@@ -122,7 +122,7 @@ class TestSystemNIC(unittest.TestCase):
 class SystemNICHardwareManagerMock(system_nic.SystemNICHardwareManager):
 
     def get_firmware_mappings(self, vendor_id, device_id):
-        return {"enp3s0" : "12.20.1010"}
+        return {"enp3s0": "12.20.1010"}
 
 
 class TestSystemNICManager(unittest.TestCase):

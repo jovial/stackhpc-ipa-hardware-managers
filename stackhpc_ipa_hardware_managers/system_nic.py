@@ -29,11 +29,10 @@ LOG = log.getLogger()
 
 
 def _get_lspci_output(vendor_id=None, device_id=None, **kwargs):
-    device_filter_arg = ''
+    device_filter_arg = ""
     if vendor_id or device_id:
         device_filter_arg = "-d " + _get_device_filter_string(vendor_id,
                                                               device_id)
-    lspci_output = ''
     kwargs["shell"] = True
     try:
         lspci_output, _e = utils.execute(
@@ -50,7 +49,7 @@ def _parse_lspci_output(lspci_output):
         if record_str == "":
             continue
         fields_raw = record_str.splitlines()
-        fields = map((lambda x: x.split(':\t')), fields_raw)
+        fields = map((lambda x: x.split(":\t")), fields_raw)
         devices.append(dict(list(map(tuple, fields))))
     return devices
 
@@ -77,7 +76,7 @@ def _get_base_in_relative_path(path):
 
 def _pci_addr_to_net_interface(pci_addr):
     for uevent_file in glob.glob("/sys/class/net/*/device/uevent"):
-        with open(uevent_file, 'r') as f:
+        with open(uevent_file, "r") as f:
             for line in f.readlines():
                 if _is_matching_uevent_line(line, pci_addr):
                     return _get_NIC_name(uevent_file)
@@ -93,13 +92,12 @@ def _is_matching_uevent_line(line, pci_addr):
 
 
 def _get_NIC_name(uevent_file):
-    relative_path = os.path.relpath(uevent_file, '/sys/class/net/')
+    relative_path = os.path.relpath(uevent_file, "/sys/class/net/")
     return _get_base_in_relative_path(relative_path)
 
 
 def _get_ethtool_output(dev, **kwargs):
     kwargs["shell"] = True
-    ethtool_output = ''
     try:
         ethtool_output, _e = utils.execute(
             "ethtool -i {device}".format(device=dev),
@@ -146,7 +144,7 @@ def _get_nic_firmware_versions(vendor_id, device_id):
 class SystemNICHardwareManager(hardware.HardwareManager):
     """Checks firmware version for a given network card"""
 
-    HARDWARE_MANAGER_VERSION = '1.0'
+    HARDWARE_MANAGER_VERSION = "1.0"
 
     def evaluate_hardware_support(self):
         """Declare whether the system is supported by this manager.
@@ -193,8 +191,8 @@ class SystemNICHardwareManager(hardware.HardwareManager):
 
         if "extra" not in node or "nic_firmware" not in node["extra"]:
             LOG.warning(
-                'NIC firmware property has not been set. No firmware will be '
-                'verified')
+                "NIC firmware property has not been set. No firmware will be "
+                "verified")
             return True
 
         firmwares = node["extra"]["nic_firmware"]
