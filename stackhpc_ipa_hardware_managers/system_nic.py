@@ -169,22 +169,13 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                  'reboot_requested': False,
                  'abortable': True}]
 
-    def _get_lspci_output(*args, **kwargs):
-        return _get_lspci_output(*args, **kwargs)
-
-    def _pci_addr_to_net_interface(*args, **kwargs):
-        return _pci_addr_to_net_interface(*args, **kwargs)
-
-    def _get_ethtool_output(*args, **kwargs):
-        return _get_ethtool_output(*args, **kwargs)
-
-    def _get_nic_firmware_versions(self, vendor_id, device_id):
+    def get_firmware_mappings(self, vendor_id, device_id):
         # there might be multiple identical cards, we must check them all
         devices = _parse_lspci_output(
-            self._get_lspci_output(vendor_id, device_id))
+            _get_lspci_output(vendor_id, device_id))
         interfaces = []
         for device in devices:
-            interface_name = self._pci_addr_to_net_interface(device['Slot'])
+            interface_name = _pci_addr_to_net_interface(device['Slot'])
             if interface_name is None:
                 raise errors.CleaningError(
                     "Could not network determine interface name. The pci_id "
@@ -193,7 +184,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                     .format(vendor_id=vendor_id, device_id=device_id))
             interfaces.append(interface_name)
         return dict(map(lambda x: (x, _get_ethtool_field(
-            self._get_ethtool_output(x), "firmware-version")), interfaces))
+            _get_ethtool_output(x), "firmware-version")), interfaces))
 
     def verify_nic_firmware(self, node, ports):
         """
@@ -215,8 +206,8 @@ class SystemNICHardwareManager(hardware.HardwareManager):
         device_id = _get_expected_property(firmware, "device_id")
         vendor_id = _get_expected_property(firmware, "vendor_id")
         expected_version = _get_expected_property(firmware, "firmware_version")
-        interface_to_version_map = self._get_nic_firmware_versions(vendor_id,
-                                                                   device_id)
+        interface_to_version_map = self.get_firmware_mappings(vendor_id,
+                                                              device_id)
         for interface_name, actual_version in interface_to_version_map.items():
             if actual_version == expected_version:
                 LOG.debug("firmware version matches for interface: {}".format(

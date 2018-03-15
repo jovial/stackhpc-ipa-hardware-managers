@@ -120,14 +120,9 @@ class TestSystemNIC(unittest.TestCase):
 
 
 class SystemNICHardwareManagerMock(system_nic.SystemNICHardwareManager):
-    def _get_lspci_output(*args, **kwargs):
-        return get_lspci_output_one_match()
 
-    def _pci_addr_to_net_interface(*args, **kwargs):
-        return "enp3s0"
-
-    def _get_ethtool_output(*args, **kwargs):
-        return get_ethtool_output()
+    def get_firmware_mappings(self, vendor_id, device_id):
+        return {"enp3s0" : "12.20.1010"}
 
 
 class TestSystemNICManager(unittest.TestCase):
