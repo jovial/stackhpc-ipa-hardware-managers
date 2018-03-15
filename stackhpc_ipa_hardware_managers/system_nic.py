@@ -170,6 +170,15 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                  'abortable': True}]
 
     def get_firmware_mappings(self, vendor_id, device_id):
+        """Get a dictionary of interface names to firmware version
+
+        :param vendor_id: string containing numeric representation of
+                          pci vendor id
+        :param device_id: string containing numeric representation of
+                          pci device id
+        :return: a dictionary mapping the interface name to the firmware
+                 version for all interfaces matching vendor_id and device_id
+        """
         # there might be multiple identical cards, we must check them all
         devices = _parse_lspci_output(
             _get_lspci_output(vendor_id, device_id))
