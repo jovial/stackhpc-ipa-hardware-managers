@@ -212,6 +212,17 @@ class SystemNICHardwareManager(hardware.HardwareManager):
             self.process_firmware_matcher(firmware_matcher)
 
     def process_firmware_matcher(self, matcher):
+        """Processes all interfaces matching the given criteria
+
+        The matcher dictionary should contain the following strings:
+
+        * vendor_id : a numeric pci vendor id
+        * device_id: a numeric pci device id
+        * firmware_version: expected firmware version
+
+        :param matcher: dictionary of matching criteria
+        :return: None
+        """
         device_id = _get_expected_field(matcher, "device_id")
         vendor_id = _get_expected_field(matcher, "vendor_id")
         expected_version = _get_expected_field(matcher, "firmware_version")
