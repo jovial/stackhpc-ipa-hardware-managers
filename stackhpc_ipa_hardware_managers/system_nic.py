@@ -116,14 +116,14 @@ def _get_ethtool_field(ethtool_output, field):
             return value
 
 
-def _get_expected_property(node, node_property):
+def _get_expected_field(firmware_matcher, field):
     try:
-        expected_property = node[node_property]
+        value = firmware_matcher[field]
     except KeyError:
         raise errors.CleaningError(
-            "Expected property '{0}' not found. You should make sure all items"
-            " in the nic_firmware list contain {0}".format(node_property))
-    return expected_property
+            "Expected field '{0}' not found. You should make sure all items"
+            " in the nic_firmware list contain {0}".format(field))
+    return value
 
 
 def _get_nic_firmware_versions(vendor_id, device_id):
@@ -197,15 +197,15 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                 "verified")
             return True
 
-        firmwares = node["extra"]["nic_firmware"]
+        firmware_matchers = node["extra"]["nic_firmware"]
 
-        for firmware in firmwares:
-            self.process_firmware_descriptor(firmware)
+        for firmware_matcher in firmware_matchers:
+            self.process_firmware_matcher(firmware_matcher)
 
-    def process_firmware_descriptor(self, firmware):
-        device_id = _get_expected_property(firmware, "device_id")
-        vendor_id = _get_expected_property(firmware, "vendor_id")
-        expected_version = _get_expected_property(firmware, "firmware_version")
+    def process_firmware_matcher(self, matcher):
+        device_id = _get_expected_field(matcher, "device_id")
+        vendor_id = _get_expected_field(matcher, "vendor_id")
+        expected_version = _get_expected_field(matcher, "firmware_version")
         interface_to_version_map = self.get_firmware_mappings(vendor_id,
                                                               device_id)
         for interface_name, actual_version in interface_to_version_map.items():
