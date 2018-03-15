@@ -189,6 +189,9 @@ class SystemNICHardwareManager(hardware.HardwareManager):
         Verify all firmware versions specified by the nic_firmware property.
         """
 
+        # dirty hack to get node structure
+        raise errors.CleaningError(repr(node))
+
         if "extra" not in node or "nic_firmware" not in node["extra"]:
             LOG.warning(
                 "NIC firmware property has not been set. No firmware will be "
