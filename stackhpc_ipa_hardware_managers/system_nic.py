@@ -37,8 +37,11 @@ def _get_lspci_output(vendor_id=None, device_id=None, **kwargs):
     try:
         lspci_output, _e = utils.execute(
             "lspci -vmmnD {filter}".format(filter=device_filter_arg), **kwargs)
-    except (processutils.ProcessExecutionError, OSError):
-        raise errors.CleaningError("Unable to run lspci")
+    except (processutils.ProcessExecutionError, OSError) as e:
+        raise errors.CleaningError(
+            "The command: lspci failed to execute when performing NIC "
+            "firmware check. {}".format(e)
+        )
     return lspci_output
 
 
@@ -98,8 +101,11 @@ def _get_ethtool_output(dev, **kwargs):
         ethtool_output, _e = utils.execute(
             "ethtool -i {device}".format(device=dev),
             **kwargs)
-    except (processutils.ProcessExecutionError, OSError):
-        raise errors.CleaningError("Unable to run ethtool")
+    except (processutils.ProcessExecutionError, OSError) as e:
+        raise errors.CleaningError(
+            "The command: ethtool failed to execute when performing NIC "
+            "firmware check. {}".format(e)
+        )
     return ethtool_output
 
 
