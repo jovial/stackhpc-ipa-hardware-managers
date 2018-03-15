@@ -23,7 +23,7 @@ from ironic_python_agent import utils
 from oslo_concurrency import processutils
 from oslo_log import log
 
-UEVENT_PCI_SLOT_NAME_PREFIX = "PCI_SLOT_NAME="
+_UEVENT_PCI_SLOT_NAME_PREFIX = "PCI_SLOT_NAME="
 
 LOG = log.getLogger()
 
@@ -84,9 +84,9 @@ def _pci_addr_to_net_interface(pci_addr):
 
 
 def _is_matching_uevent_line(line, pci_addr):
-    if line.startswith(UEVENT_PCI_SLOT_NAME_PREFIX):
+    if line.startswith(_UEVENT_PCI_SLOT_NAME_PREFIX):
         # example : "PCI_SLOT_NAME=0000:00:19.0\n"
-        slot_name = line.lstrip(UEVENT_PCI_SLOT_NAME_PREFIX).strip()
+        slot_name = line.lstrip(_UEVENT_PCI_SLOT_NAME_PREFIX).strip()
         if slot_name == pci_addr:
             return True
     return False
