@@ -148,7 +148,6 @@ class TestSystemNICManager(unittest.TestCase):
         self.assertFalse(self.manager.verify_nic_firmware(node, None))
 
     def _verify_nic_firmware(self, node):
-        # shouldn't throw
         self.assertTrue(
             self.manager.verify_nic_firmware(
                 get_dummy_node_info(), None))
@@ -179,6 +178,38 @@ class TestSystemNICManager(unittest.TestCase):
             spoof_version + "ADDITIONAL",
             spoof_version
         )
+    def test_verify_missing_vendor(self):
+        node = get_dummy_node_info()
+        del node["extra"]["nic_firmware"][0]["vendor_id"]
+        self.assertRaisesRegexp(
+            errors.CleaningError,
+            "vendor_id",
+            self.manager.verify_nic_firmware,
+            node,
+            None
+        )
+
+    def test_verify_missing_device_id(self):
+        node = get_dummy_node_info()
+        del node["extra"]["nic_firmware"][0]["device_id"]
+        self.assertRaisesRegexp(
+            errors.CleaningError,
+            "device_id",
+            self.manager.verify_nic_firmware,
+            node,
+            None
+        )
+
+    def test_verify_missing_firmware_version(self):
+        node = get_dummy_node_info()
+        del node["extra"]["nic_firmware"][0]["firmware_version"]
+        self.assertRaisesRegexp(
+            errors.CleaningError,
+            "firmware_version",
+            self.manager.verify_nic_firmware,
+            node,
+            None
+        );
 
     @mock.patch.object(SystemNICHardwareManagerMock, 'get_firmware_mappings')
     def _verify_nic_firmware_mismatch(self, expected_version, spoof_version,

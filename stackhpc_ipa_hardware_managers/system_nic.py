@@ -165,7 +165,7 @@ def _get_expected_field(firmware_matcher, field):
     except KeyError:
         raise errors.CleaningError(
             "Expected field '{0}' not found. You should make sure all items"
-            " in the nic_firmware list contain {0}".format(field))
+            " in the nic_firmware list contain the field: {0}".format(field))
     return value
 
 
