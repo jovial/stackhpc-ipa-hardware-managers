@@ -15,10 +15,10 @@
 import os
 import unittest
 
-import mock
-
 from ironic_python_agent import errors
 from ironic_python_agent import hardware
+
+import mock
 
 from stackhpc_ipa_hardware_managers import system_nic
 
@@ -40,6 +40,7 @@ def get_dummy_node_info(version=EXPECTED_VERSION, disable='false'):
             ]
         }
     }
+
 
 def get_dummy_node_info_not_list():
     return {
@@ -160,7 +161,7 @@ class TestSystemNICManager(unittest.TestCase):
         node = get_dummy_node_info(disable=value)
         self.assertFalse(self.manager.verify_nic_firmware(node, None))
 
-    def _verify_nic_firmware(self,node):
+    def _verify_nic_firmware(self, node):
         self.assertTrue(
             self.manager.verify_nic_firmware(
                 node, None))

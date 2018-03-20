@@ -274,14 +274,14 @@ class SystemNICHardwareManager(hardware.HardwareManager):
         if "extra" not in node or "nic_firmware" not in node["extra"]:
             raise errors.CleaningError(
                 "Expected property 'nic_firmware' not found. " +
-            _HELP_MSG_EXAMPLE)
+                _HELP_MSG_EXAMPLE)
 
         firmware_matchers = node["extra"]["nic_firmware"]
 
         if not isinstance(firmware_matchers, list):
             raise errors.CleaningError(
-                "The property 'nic_firmware' should be a list. "
-                + _HELP_MSG_EXAMPLE
+                "The property 'nic_firmware' should be a list. " +
+                _HELP_MSG_EXAMPLE
             )
 
         for firmware_matcher in firmware_matchers:
