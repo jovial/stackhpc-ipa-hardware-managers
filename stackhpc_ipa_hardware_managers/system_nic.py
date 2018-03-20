@@ -25,6 +25,13 @@ from oslo_log import log
 from oslo_utils import strutils
 
 _FIRMWARE_CHECK_DISABLE_KEY = 'disable_nic_firmware_check'
+_HELP_MSG_EXAMPLE = (
+    "For cleaning to proceed, you must set the property "
+    "'nic_firmware' in the node's extra field, for example:\n"
+    "$ openstack baremetal node set $NODE_ID --extra "
+    """nic_firmware='[{"vendor_id": "15B3","device_id": " "1013","""
+    """firmware_version": "12.20.1019"}]'"""
+)
 
 _UEVENT_PCI_SLOT_NAME_PREFIX = "PCI_SLOT_NAME="
 
@@ -222,7 +229,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                     "Could not network determine interface name. The pci_id "
                     "was: {vendor_id}:{device_id}. Does this correspond to a "
                     "network card?"
-                        .format(vendor_id=vendor_id, device_id=device_id))
+                    .format(vendor_id=vendor_id, device_id=device_id))
             interfaces.append(interface_name)
         return dict(map(lambda x: (x, _get_ethtool_field(
             _get_ethtool_output(x), "firmware-version")), interfaces))
@@ -266,14 +273,16 @@ class SystemNICHardwareManager(hardware.HardwareManager):
 
         if "extra" not in node or "nic_firmware" not in node["extra"]:
             raise errors.CleaningError(
-                "Expected property 'nic_firmware' not found. For cleaning to "
-                "proceed, you must set the property 'nic_firmware' in the "
-                "node's extra field, for example: $ openstack baremetal node "
-                "set $NODE_ID --extra nic_firmware='[{\"vendor_id\": \"15B3\","
-                "\"device_id\": \"1013\", \"firmware_version\": \"12.20.1019\""
-                "}]'")
+                "Expected property 'nic_firmware' not found. " +
+            _HELP_MSG_EXAMPLE)
 
         firmware_matchers = node["extra"]["nic_firmware"]
+
+        if not isinstance(firmware_matchers, list):
+            raise errors.CleaningError(
+                "The property 'nic_firmware' should be a list. "
+                + _HELP_MSG_EXAMPLE
+            )
 
         for firmware_matcher in firmware_matchers:
             self.process_firmware_matcher(firmware_matcher)

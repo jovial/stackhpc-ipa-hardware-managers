@@ -41,6 +41,19 @@ def get_dummy_node_info(version=EXPECTED_VERSION, disable='false'):
         }
     }
 
+def get_dummy_node_info_not_list():
+    return {
+        'extra': {
+            system_nic._FIRMWARE_CHECK_DISABLE_KEY: False,
+            'nic_firmware':
+                {
+                    'vendor_id': '15B3',
+                    'device_id': '1013',
+                    'firmware_version': EXPECTED_VERSION
+                }
+        }
+    }
+
 
 def get_lspci_output_multi():
     with open(os.path.join(TEST_DIR, "data/lspci.output"), "r") as f:
@@ -147,10 +160,10 @@ class TestSystemNICManager(unittest.TestCase):
         node = get_dummy_node_info(disable=value)
         self.assertFalse(self.manager.verify_nic_firmware(node, None))
 
-    def _verify_nic_firmware(self, node):
+    def _verify_nic_firmware(self,node):
         self.assertTrue(
             self.manager.verify_nic_firmware(
-                get_dummy_node_info(), None))
+                node, None))
 
     def test_nic_firmware_mismatch(self):
         spoof_version = "will_not_match"
@@ -178,6 +191,7 @@ class TestSystemNICManager(unittest.TestCase):
             spoof_version + "ADDITIONAL",
             spoof_version
         )
+
     def test_verify_missing_vendor(self):
         node = get_dummy_node_info()
         del node["extra"]["nic_firmware"][0]["vendor_id"]
@@ -209,7 +223,28 @@ class TestSystemNICManager(unittest.TestCase):
             self.manager.verify_nic_firmware,
             node,
             None
-        );
+        )
+
+    def test_verify_missing_nic_firmware(self):
+        node = get_dummy_node_info()
+        del node["extra"]["nic_firmware"]
+        self.assertRaisesRegexp(
+            errors.CleaningError,
+            "Expected property 'nic_firmware' not found",
+            self.manager.verify_nic_firmware,
+            node,
+            None
+        )
+
+    def test_verify_nic_firmware_not_list(self):
+        node = get_dummy_node_info_not_list()
+        self.assertRaisesRegexp(
+            errors.CleaningError,
+            "The property 'nic_firmware' should be a list",
+            self.manager.verify_nic_firmware,
+            node,
+            None
+        )
 
     @mock.patch.object(SystemNICHardwareManagerMock, 'get_firmware_mappings')
     def _verify_nic_firmware_mismatch(self, expected_version, spoof_version,
