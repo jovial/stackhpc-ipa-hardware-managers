@@ -95,6 +95,9 @@ def _get_base_in_relative_path(path):
 
 
 def _pci_addr_to_net_interface(pci_addr):
+    # The pci slot name of all network cards can be determined by reading
+    # /sys/class/net/*/device/uevent, and looking at the line beginning with
+    # PCI_SLOT_NAME.
     for uevent_file in glob.glob("/sys/class/net/*/device/uevent"):
         with open(uevent_file, "r") as f:
             for line in f.readlines():
@@ -103,8 +106,8 @@ def _pci_addr_to_net_interface(pci_addr):
 
 
 def _is_matching_uevent_line(line, pci_addr):
+    # example good input : "PCI_SLOT_NAME=0000:00:19.0\n"
     if line.startswith(_UEVENT_PCI_SLOT_NAME_PREFIX):
-        # example : "PCI_SLOT_NAME=0000:00:19.0\n"
         slot_name = line.lstrip(_UEVENT_PCI_SLOT_NAME_PREFIX).strip()
         if slot_name == pci_addr:
             return True
@@ -112,6 +115,8 @@ def _is_matching_uevent_line(line, pci_addr):
 
 
 def _get_NIC_name(uevent_file):
+    # network card name appears in wildcard position of the
+    # /sys/class/net/*/device/uevent glob
     relative_path = os.path.relpath(uevent_file, "/sys/class/net/")
     return _get_base_in_relative_path(relative_path)
 
@@ -131,6 +136,20 @@ def _get_ethtool_output(dev, **kwargs):
 
 
 def _get_ethtool_field(ethtool_output, field):
+    # given the example ethtool_output:
+    #
+    #   driver: mlx5_core
+    #   version: 3.0-1 (January 2015)
+    #   firmware-version: 12.20.1010
+    #   expansion-rom-version:
+    #   bus-info: 0000:03:00.1
+    #   supports-statistics: yes
+    #   supports-test: yes
+    #   supports-eeprom-access: no
+    #   supports-register-dump: no
+    #   supports-priv-flags: yes
+    #
+    # the available fields are driver, version, firmware-version, etc.
     for line in ethtool_output.splitlines():
         (candidate_field, value) = tuple(line.split(": "))
         if candidate_field == field:
