@@ -15,6 +15,7 @@
 
 import glob
 import os
+from collections import namedtuple
 
 from ironic_python_agent import errors
 from ironic_python_agent import hardware
@@ -182,6 +183,12 @@ def _is_nic_verification_disabled(node):
         disable_check) if disable_check is not None else False
 
 
+NICFirmwareVerifyResult = namedtuple(
+    'NICFirmwareVerifyResult',
+    'actual_version expected_version '
+    'matcher')
+
+
 class SystemNICHardwareManager(hardware.HardwareManager):
     """Checks firmware version for a given network card"""
 
@@ -284,10 +291,36 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                 _HELP_MSG_EXAMPLE
             )
 
+        successes = {}
+        failures = {}
         for firmware_matcher in firmware_matchers:
-            self.process_firmware_matcher(firmware_matcher)
+            result = self.process_firmware_matcher(firmware_matcher)
+            successes.update(result[0])
+            failures.update(result[1])
 
-        return True
+        error_msgs = []
+        for interface, result in failures.iteritems():
+                msg = (
+                    "Firmware version mismatch for card: {interface}. The "
+                    "expected version was: {expected_version}, "
+                    "but the actual version was {actual_version}. "
+                    "The matcher that failed was {matcher}"
+                    ).format(
+                    interface=interface,
+                    expected_version=result.expected_version,
+                    actual_version=result.actual_version,
+                    matcher=result.matcher)
+                error_msgs.append(msg)
+
+        if failures:
+            raise errors.CleaningError(
+                "Found {} firmware version mismatches "
+                "when verifying NIC firmware. The errors were: \n"
+                .format(len(error_msgs)) +
+                 "\n".join(error_msgs)
+            )
+
+        return successes
 
     def process_firmware_matcher(self, matcher):
         """Processes all interfaces matching the given criteria
@@ -299,32 +332,30 @@ class SystemNICHardwareManager(hardware.HardwareManager):
         * firmware_version: expected firmware version
 
         :param matcher: dictionary of matching criteria
-        :return: None
+        :return: tuple with the structure (successes, failures) where,
+                 *successes* and *failures* are dictionaries mapping the
+                 interface name to a NICFirmwareVerifyResult
         """
         device_id = _get_expected_field(matcher, "device_id")
         vendor_id = _get_expected_field(matcher, "vendor_id")
         expected_version = _get_expected_field(matcher, "firmware_version")
         interface_to_version_map = self.get_firmware_mappings(vendor_id,
                                                               device_id)
+        successes = {}
+        failures = {}
         for interface_name, actual_version in interface_to_version_map.items():
             if actual_version == expected_version:
                 LOG.debug("firmware version matches for interface: {}".format(
                     interface_name))
+                successes[interface_name] = NICFirmwareVerifyResult(
+                    actual_version,
+                    expected_version,
+                    matcher
+                )
             else:
-                raise errors.CleaningError(
-                    "Firmware version mismatch for card: {interface}. The "
-                    "expected version was: {expected_version}, "
-                    "but the actual version was {actual_version}".format(
-                        interface=interface_name,
-                        expected_version=expected_version,
-                        actual_version=actual_version))
-
-# if __name__ == "__main__":
-# Access to some parts of the PCI configuration space is restricted to
-# root on many operating systems, so the features of lspci available to
-# normal users are limited
-
-# print(_get_lspci_output(None,None,run_as_root=True, root_helper="sudo"))
-# print repr(_get_ethtool_output("enp3s0"))
-# print repr(_get_lspci_output("10ec", None))
-# print _get_nic_firmware_versions("10EC", "8168")
+                failures[interface_name] = NICFirmwareVerifyResult(
+                    actual_version,
+                    expected_version,
+                    matcher
+                )
+        return (successes, failures)
