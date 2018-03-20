@@ -46,6 +46,27 @@ def _get_lspci_output(vendor_id=None, device_id=None, **kwargs):
 
 
 def _parse_lspci_output(lspci_output):
+    """Converts raw output of *lspci* into a dictionary of fields to values
+
+    The lspci_output must be in the verbose machine readable format i.e you
+    must use the -vmm flags. This is so the output remains stable between
+    versions. An example input would be::
+
+        Slot:	0000:00:00.0
+        Class:	0600
+        Vendor:	8086
+        Device:	6f00
+        SVendor:	8086
+        SDevice:	0000
+        Rev:	01
+        NUMANode:	0
+
+
+    Please see the *lspci* man page for more details.
+
+    :param lspci_output: machine readable output of lspci
+    :return: dictionary of fields to values
+    """
     all_records = lspci_output.split("\n\n")
     devices = []
     for record_str in all_records:
