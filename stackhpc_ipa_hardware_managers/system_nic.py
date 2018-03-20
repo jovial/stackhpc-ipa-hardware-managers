@@ -317,7 +317,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                 "Found {} firmware version mismatches "
                 "when verifying NIC firmware. The errors were: \n"
                 .format(len(error_msgs)) +
-                 "\n".join(error_msgs)
+                "\n".join(error_msgs)
             )
 
         return successes
