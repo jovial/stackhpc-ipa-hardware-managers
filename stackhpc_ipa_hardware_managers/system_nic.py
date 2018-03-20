@@ -22,6 +22,9 @@ from ironic_python_agent import utils
 
 from oslo_concurrency import processutils
 from oslo_log import log
+from oslo_utils import strutils
+
+_FIRMWARE_CHECK_DISABLE_KEY = 'disable_nic_firmware_check'
 
 _UEVENT_PCI_SLOT_NAME_PREFIX = "PCI_SLOT_NAME="
 
@@ -166,21 +169,10 @@ def _get_expected_field(firmware_matcher, field):
     return value
 
 
-def _get_nic_firmware_versions(vendor_id, device_id):
-    # there might be multiple identical cards, we must check them all
-    devices = _parse_lspci_output(_get_lspci_output(vendor_id, device_id))
-    interfaces = []
-    for device in devices:
-        interface_name = _pci_addr_to_net_interface(device['Slot'])
-        if interface_name is None:
-            raise errors.CleaningError(
-                "Could not determine network interface name. The pci_id was: "
-                "{vendor_id}:{device_id}. Does this correspond to a network "
-                "card?".format(vendor_id=vendor_id, device_id=device_id))
-        interfaces.append(interface_name)
-    return dict(map(lambda x: (
-        x, _get_ethtool_field(_get_ethtool_output(x), "firmware-version")),
-        interfaces))
+def _is_nic_verification_disabled(node):
+    disable_check = node['extra'].get(_FIRMWARE_CHECK_DISABLE_KEY)
+    return strutils.bool_from_string(
+        disable_check) if disable_check is not None else False
 
 
 class SystemNICHardwareManager(hardware.HardwareManager):
@@ -230,7 +222,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                     "Could not network determine interface name. The pci_id "
                     "was: {vendor_id}:{device_id}. Does this correspond to a "
                     "network card?"
-                    .format(vendor_id=vendor_id, device_id=device_id))
+                        .format(vendor_id=vendor_id, device_id=device_id))
             interfaces.append(interface_name)
         return dict(map(lambda x: (x, _get_ethtool_field(
             _get_ethtool_output(x), "firmware-version")), interfaces))
@@ -268,16 +260,25 @@ class SystemNICHardwareManager(hardware.HardwareManager):
 
         """
 
+        if _is_nic_verification_disabled(node):
+            LOG.warning('NIC firmware version verification has been disabled.')
+            return False
+
         if "extra" not in node or "nic_firmware" not in node["extra"]:
-            LOG.warning(
-                "NIC firmware property has not been set. No firmware will be "
-                "verified")
-            return True
+            raise errors.CleaningError(
+                "Expected property 'nic_firmware' not found. For cleaning to "
+                "proceed, you must set the property 'nic_firmware' in the "
+                "node's extra field, for example: $ openstack baremetal node "
+                "set $NODE_ID --extra nic_firmware='[{\"vendor_id\": \"15B3\","
+                "\"device_id\": \"1013\", \"firmware_version\": \"12.20.1019\""
+                "}]'")
 
         firmware_matchers = node["extra"]["nic_firmware"]
 
         for firmware_matcher in firmware_matchers:
             self.process_firmware_matcher(firmware_matcher)
+
+        return True
 
     def process_firmware_matcher(self, matcher):
         """Processes all interfaces matching the given criteria

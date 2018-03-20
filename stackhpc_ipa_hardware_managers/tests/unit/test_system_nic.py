@@ -15,36 +15,27 @@
 import os
 import unittest
 
+import mock
+
 from ironic_python_agent import errors
 from ironic_python_agent import hardware
 
 from stackhpc_ipa_hardware_managers import system_nic
 
+EXPECTED_VERSION = "12.20.1010"
+
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def get_dummy_node_info():
+def get_dummy_node_info(version=EXPECTED_VERSION, disable='false'):
     return {
         'extra': {
+            system_nic._FIRMWARE_CHECK_DISABLE_KEY: disable,
             'nic_firmware': [
                 {
                     'vendor_id': '15B3',
                     'device_id': '1013',
-                    'firmware_version': '12.20.1010'
-                }
-            ]
-        }
-    }
-
-
-def get_dummy_node_info_version_mismatch():
-    return {
-        'extra': {
-            'nic_firmware': [
-                {
-                    'vendor_id': '15B3',
-                    'device_id': '1013',
-                    'firmware_version': '1234.5678'
+                    'firmware_version': version
                 }
             ]
         }
@@ -138,11 +129,68 @@ class TestSystemNICManager(unittest.TestCase):
         actual = self.manager.evaluate_hardware_support()
         self.assertEqual(hardware.HardwareSupport.SERVICE_PROVIDER, actual)
 
-    def test_verify_nic_firmware(self):
-        # shouldn't throw
-        self.manager.verify_nic_firmware(get_dummy_node_info(), None)
+    def test_verify_nic_firmware_disabled(self):
+        for value in (True, "true", "on", "y", "yes"):
+            self._verify_nic_firmware_disabled(value)
 
-    def test_verify_nic_firmware_mismatch(self):
-        self.assertRaises(errors.CleaningError,
-                          self.manager.verify_nic_firmware,
-                          get_dummy_node_info_version_mismatch(), None)
+    def test_verify_nic_firmware_explicity_enabled(self):
+        for value in (False, "false", "off", "n", "no"):
+            node = get_dummy_node_info(disable=value)
+            self._verify_nic_firmware(node)
+
+    def test_verify_nic_firmware_enabled(self):
+        node = get_dummy_node_info()
+        del node['extra'][system_nic._FIRMWARE_CHECK_DISABLE_KEY]
+        self._verify_nic_firmware(node)
+
+    def _verify_nic_firmware_disabled(self, value):
+        node = get_dummy_node_info(disable=value)
+        self.assertFalse(self.manager.verify_nic_firmware(node, None))
+
+    def _verify_nic_firmware(self, node):
+        # shouldn't throw
+        self.assertTrue(
+            self.manager.verify_nic_firmware(
+                get_dummy_node_info(), None))
+
+    def test_nic_firmware_mismatch(self):
+        spoof_version = "will_not_match"
+        # clearly different
+        self._verify_nic_firmware_mismatch(spoof_version, EXPECTED_VERSION)
+
+    def test_nic_firmware_substrings(self):
+        spoof_version = "will_not_match"
+        self._verify_nic_firmware_mismatch(
+            spoof_version,
+            spoof_version[1:]
+        )
+        self._verify_nic_firmware_mismatch(
+            spoof_version,
+            spoof_version[:-1]
+        )
+
+    def test_nic_firmware_appendix(self):
+        spoof_version = "will_not_match"
+        self._verify_nic_firmware_mismatch(
+            spoof_version,
+            spoof_version + "ADDITIONAL"
+        )
+        self._verify_nic_firmware_mismatch(
+            spoof_version + "ADDITIONAL",
+            spoof_version
+        )
+
+    @mock.patch.object(SystemNICHardwareManagerMock, 'get_firmware_mappings')
+    def _verify_nic_firmware_mismatch(self, expected_version, spoof_version,
+                                      mock):
+        mock.return_value = {"enp3s0": spoof_version}
+        node = get_dummy_node_info(version=expected_version)
+        expected_regex = "^(.*\\b{expected}\\b)(.*\\b{actual}\\b).*$" \
+            .format(actual=spoof_version, expected=expected_version)
+        self.assertRaisesRegexp(
+            errors.CleaningError,
+            expected_regex,
+            self.manager.verify_nic_firmware,
+            node,
+            None
+        )
