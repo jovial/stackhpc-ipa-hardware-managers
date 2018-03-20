@@ -238,6 +238,34 @@ class SystemNICHardwareManager(hardware.HardwareManager):
     def verify_nic_firmware(self, node, ports):
         """
         Verify all firmware versions specified by the nic_firmware property.
+
+        The nic_firmware property should take the form of a json list of
+        firmware matching criteria. The firmware matching criteria should
+        be a dictionary containing the following required fields:
+
+        - vendor_id : numeric pci vendor id
+        - device_id : numeric pci device id
+        - firmware_version : expected firmware version
+
+        the values of all fields should be strings. An example is given below::
+
+            [
+                { "vendor_id": "15B3", "device_id": "1013",
+                  "firmware_version": "12.20.1010" }
+            ]
+
+        The nic_firmware property can be manually set on a given node, as shown
+        in this example::
+
+              openstack baremetal node set $NODE_ID --extra \\
+              nic_firmware='[{"vendor_id": "15B3", "device_id": "1013", \\
+              "firmware_version": "12.20.1010"}]'
+
+        Each network card is checked against each of the items in the matching
+        criteria list. If the device and vendor ids match, the firmware version
+        is checked against the expected version specified in the
+        nic_firmware property's firmware_version field.
+
         """
 
         if "extra" not in node or "nic_firmware" not in node["extra"]:
