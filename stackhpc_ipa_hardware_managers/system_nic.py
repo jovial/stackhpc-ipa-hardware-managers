@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import glob
+import itertools
 import os
 from collections import namedtuple
 
@@ -24,8 +25,6 @@ from ironic_python_agent import utils
 from oslo_concurrency import processutils
 from oslo_log import log
 from oslo_utils import strutils
-
-import itertools
 
 _MISSING_MATCHER_RULE = (
     "Not checking NIC firmware for {interface}. "
