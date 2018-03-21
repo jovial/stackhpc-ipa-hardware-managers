@@ -102,6 +102,30 @@ set it to `False`. For example:
 
     openstack baremetal node unset $NODE_ID --extra disable_nic_firmware_check
 
+known limitations:
+^^^^^^^^^^^^^^^^^^^
+
+* If a network card presents itself as multiple different interfaces, multiple
+  failures will be reported for the same card. An example is an Mellanox ConnectX-4
+  dual-port device:
+
+    .. code-block::
+
+        Bus info          Device     Class          Description
+        =======================================================
+        pci@0000:03:00.0  ib0        network        MT27700 Family [ConnectX-4]
+        pci@0000:03:00.1  p3p2       network        MT27700 Family [ConnectX-4]
+
+  The error will shown as:
+
+    .. code-block::
+
+        Clean step failed: Error performing clean_step verify_nic_firmware: Clean step failed: Found 2 firmware version mismatches when verifying NIC firmware. The errors were:
+        Firmware version mismatch for card: ib0. The expected version was: 12.20.1019, but the actual version was 12.20.1010. The matcher that failed was {u'firmware_version': u'12.20.1019', u'vendor_id': u'15B3', u'device_id': u'1013'}
+        Firmware version mismatch for card: p3p2. The expected version was: 12.20.1019, but the actual version was 12.20.1010. The matcher that failed was {u'firmware_version': u'12.20.1019', u'vendor_id': u'15B3', u'device_id': u'1013'}
+
+* We don't currently discriminate based on the version of the card. There may be
+  issues when cards have differing versions and do not use the same firmware.
 
 Credits
 -------
