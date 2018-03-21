@@ -278,7 +278,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
 
         if _is_nic_verification_disabled(node):
             LOG.warning('NIC firmware version verification has been disabled.')
-            return False
+            return {}
 
         if "extra" not in node or "nic_firmware" not in node["extra"]:
             raise errors.CleaningError(
@@ -294,7 +294,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
             )
 
         lookup_table = _get_pci_id_lookup_table(firmware_matchers)
-        successes, failures = self.process_expected_versions(lookup_table)
+        successes, failures = self._process_expected_versions(lookup_table)
 
         error_msgs = []
         for interface, result in failures.iteritems():
@@ -320,7 +320,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
 
         return successes
 
-    def process_expected_versions(self, pci_matcher_lookup_table):
+    def _process_expected_versions(self, pci_matcher_lookup_table):
         """Processes all matching rules
 
         where a matching rule is a dict with the following required fields:
