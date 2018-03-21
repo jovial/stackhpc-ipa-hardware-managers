@@ -25,6 +25,18 @@ from oslo_concurrency import processutils
 from oslo_log import log
 from oslo_utils import strutils
 
+import itertools
+
+_MISSING_MATCHER_RULE = (
+    "Not checking NIC firmware for {interface}. "
+    "There was no rule for pci_id: {pci_id} set in "
+    "nic_firmware property"
+)
+_DUPLICATE_ENTRIES_MSG_TEMPLATE = (
+    "Multiple matchers with the same pci_id. The conflict "
+    "occured for pci_id: {pci_id}. Using "
+    "firmware_version: {new} instead of {old}"
+)
 _FIRMWARE_CHECK_DISABLE_KEY = 'disable_nic_firmware_check'
 _HELP_MSG_EXAMPLE = (
     "For cleaning to proceed, you must set the property "
@@ -39,64 +51,6 @@ _UEVENT_PCI_SLOT_NAME_PREFIX = "PCI_SLOT_NAME="
 LOG = log.getLogger()
 
 
-def _get_lspci_output(vendor_id=None, device_id=None, **kwargs):
-    device_filter_arg = ""
-    if vendor_id or device_id:
-        device_filter_arg = "-d " + _get_device_filter_string(vendor_id,
-                                                              device_id)
-    kwargs["shell"] = True
-    try:
-        lspci_output, _e = utils.execute(
-            "lspci -vmmnD {filter}".format(filter=device_filter_arg), **kwargs)
-    except (processutils.ProcessExecutionError, OSError) as e:
-        raise errors.CleaningError(
-            "The command: lspci failed to execute when performing NIC "
-            "firmware check. {}".format(e)
-        )
-    return lspci_output
-
-
-def _parse_lspci_output(lspci_output):
-    """Converts raw output of *lspci* into a dictionary of fields to values
-
-    The lspci_output must be in the verbose machine readable format i.e you
-    must use the -vmm flags. This is so the output remains stable between
-    versions. An example input would be::
-
-        Slot:	0000:00:00.0
-        Class:	0600
-        Vendor:	8086
-        Device:	6f00
-        SVendor:	8086
-        SDevice:	0000
-        Rev:	01
-        NUMANode:	0
-
-
-    Please see the *lspci* man page for more details.
-
-    :param lspci_output: machine readable output of lspci
-    :return: dictionary of fields to values
-    """
-    all_records = lspci_output.split("\n\n")
-    devices = []
-    for record_str in all_records:
-        if record_str == "":
-            continue
-        fields_raw = record_str.splitlines()
-        fields = map((lambda x: x.split(":\t")), fields_raw)
-        devices.append(dict(list(map(tuple, fields))))
-    return devices
-
-
-def _get_device_filter_string(vendor_id, device_id):
-    device_id_str = ""
-    device_id_str += vendor_id or ""
-    device_id_str += ":"
-    device_id_str += device_id or ""
-    return device_id_str
-
-
 def _get_base_in_relative_path(path):
     # given relative path, returns the base element, e.g one/two/three,
     # returns one
@@ -105,24 +59,81 @@ def _get_base_in_relative_path(path):
     return path.split(os.sep)[0]
 
 
-def _pci_addr_to_net_interface(pci_addr):
-    # The pci slot name of all network cards can be determined by reading
-    # /sys/class/net/*/device/uevent, and looking at the line beginning with
-    # PCI_SLOT_NAME.
+def _parse_uevent(interface_line_pairs):
+    # converts the contents of /sys/class/net/*/device/uevent into a dictionary
+    # The name in the wild card position becomes the key and contents of uevent
+    # is itself mapped to a dictionary.
+    #
+    # the uevent dictionary maps the component before the first equals sign to
+    # to the component after e.g given PCI_SLOT_NAME=0000:00:19.0\n,
+    # the dictionary will contain: {"PCI_SLOT_NAME" : "0000:00:19.0"}
+    result = {}
+    for interface, _line in interface_line_pairs:
+        line = iter(_line.rstrip())
+        if interface not in result:
+            result[interface] = {}
+        split = itertools.takewhile(lambda x: x != "=", line)
+        key = "".join(split)
+        value = "".join(line)
+        result[interface][key] = value
+    return result
+
+
+def _get_uevent_devices():
     for uevent_file in glob.glob("/sys/class/net/*/device/uevent"):
+        yield (_get_NIC_name(uevent_file), uevent_file)
+
+
+def _get_devices():
+    for device, _ in _get_uevent_devices():
+        yield device
+
+
+def _uevent_lines():
+    for interface_name, uevent_file in _get_uevent_devices():
         with open(uevent_file, "r") as f:
             for line in f.readlines():
-                if _is_matching_uevent_line(line, pci_addr):
-                    return _get_NIC_name(uevent_file)
+                yield (interface_name, line)
 
 
-def _is_matching_uevent_line(line, pci_addr):
-    # example good input : "PCI_SLOT_NAME=0000:00:19.0\n"
-    if line.startswith(_UEVENT_PCI_SLOT_NAME_PREFIX):
-        slot_name = line.lstrip(_UEVENT_PCI_SLOT_NAME_PREFIX).strip()
-        if slot_name == pci_addr:
-            return True
-    return False
+def _get_pci_id(uevent_mapping):
+    # extracts pci id from uevent dictionary
+    return _parse_pci_id(uevent_mapping["PCI_ID"])
+
+
+def _get_pci_id_from_matcher(matcher):
+    device_id = _get_expected_field(matcher, "device_id")
+    vendor_id = _get_expected_field(matcher, "vendor_id")
+    return (vendor_id, device_id)
+
+
+def _get_pci_id_lookup_table(firmware_matchers):
+    # pci_id to firmware matching rule
+    result = {}
+    for matcher in firmware_matchers:
+        version = _get_expected_field(matcher, "firmware_version")
+        pci_id = _get_pci_id_from_matcher(matcher)
+        if pci_id in result:
+            LOG.warning(_DUPLICATE_ENTRIES_MSG_TEMPLATE
+                        .format(pci_id=pci_id, new=version,
+                                old=result[pci_id]["firmware_version"]))
+        result[pci_id] = matcher
+    return result
+
+
+def _parse_pci_id(id):
+    # parses a pci_id in the form "vendor_id:device_id"
+    result = tuple(id.strip().split(":"))
+    if len(result) != 2:
+        raise ValueError("pci id is expected to be in the form: "
+                         "'vendor_id:device_id'")
+    try:
+        int(result[0], 16)
+        int(result[1], 16)
+    except (ValueError):
+        raise ValueError("Both vendor_id and device_id are expected to be "
+                         "strings representing hexadecimal numbers")
+    return result
 
 
 def _get_NIC_name(uevent_file):
@@ -188,6 +199,8 @@ NICFirmwareVerifyResult = namedtuple(
     'actual_version expected_version '
     'matcher')
 
+NICDescriptor = namedtuple('NICDescriptor', "name pci_id firmware_version")
+
 
 class SystemNICHardwareManager(hardware.HardwareManager):
     """Checks firmware version for a given network card"""
@@ -199,7 +212,7 @@ class SystemNICHardwareManager(hardware.HardwareManager):
 
         :returns: HardwareSupport level for this manager.
         """
-        # This should work for anything which supports ethtool, lspci
+        # This should work for anything which supports ethtool
         return hardware.HardwareSupport.SERVICE_PROVIDER
 
     def get_clean_steps(self, node, ports):
@@ -215,31 +228,21 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                  'reboot_requested': False,
                  'abortable': True}]
 
-    def get_firmware_mappings(self, vendor_id, device_id):
-        """Get a dictionary of interface names to firmware version
+    def get_interface_descriptors(self):
+        """Enumerate all interfaces as NicDescriptor objects
 
-        :param vendor_id: string containing numeric representation of
-                          pci vendor id
-        :param device_id: string containing numeric representation of
-                          pci device id
-        :return: a dictionary mapping the interface name to the firmware
-                 version for all interfaces matching vendor_id and device_id
+        :return: list of NicDescriptor
         """
         # there might be multiple identical cards, we must check them all
-        devices = _parse_lspci_output(
-            _get_lspci_output(vendor_id, device_id))
-        interfaces = []
-        for device in devices:
-            interface_name = _pci_addr_to_net_interface(device['Slot'])
-            if interface_name is None:
-                raise errors.CleaningError(
-                    "Could not network determine interface name. The pci_id "
-                    "was: {vendor_id}:{device_id}. Does this correspond to a "
-                    "network card?"
-                    .format(vendor_id=vendor_id, device_id=device_id))
-            interfaces.append(interface_name)
-        return dict(map(lambda x: (x, _get_ethtool_field(
-            _get_ethtool_output(x), "firmware-version")), interfaces))
+        uevent_mappings = _parse_uevent(_uevent_lines())
+        result = []
+        for interface, uevent_device_info in uevent_mappings.iteritems():
+            pci_id = _get_pci_id(uevent_device_info)
+            ethtool_output = _get_ethtool_output(interface)
+            firmware = _get_ethtool_field(ethtool_output, "firmware-version")
+            result.append(NICDescriptor(pci_id=pci_id, name=interface,
+                                        firmware_version=firmware))
+        return result
 
     def verify_nic_firmware(self, node, ports):
         """
@@ -291,26 +294,22 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                 _HELP_MSG_EXAMPLE
             )
 
-        successes = {}
-        failures = {}
-        for firmware_matcher in firmware_matchers:
-            result = self.process_firmware_matcher(firmware_matcher)
-            successes.update(result[0])
-            failures.update(result[1])
+        lookup_table = _get_pci_id_lookup_table(firmware_matchers)
+        successes, failures = self.process_expected_versions(lookup_table)
 
         error_msgs = []
         for interface, result in failures.iteritems():
-                msg = (
-                    "Firmware version mismatch for card: {interface}. The "
-                    "expected version was: {expected_version}, "
-                    "but the actual version was {actual_version}. "
-                    "The matcher that failed was {matcher}"
-                    ).format(
-                    interface=interface,
-                    expected_version=result.expected_version,
-                    actual_version=result.actual_version,
-                    matcher=result.matcher)
-                error_msgs.append(msg)
+            msg = (
+                "Firmware version mismatch for card: {interface}. The "
+                "expected version was: {expected_version}, "
+                "but the actual version was {actual_version}. "
+                "The matcher that failed was {matcher}"
+            ).format(
+                interface=interface,
+                expected_version=result.expected_version,
+                actual_version=result.actual_version,
+                matcher=result.matcher)
+            error_msgs.append(msg)
 
         if failures:
             raise errors.CleaningError(
@@ -322,28 +321,36 @@ class SystemNICHardwareManager(hardware.HardwareManager):
 
         return successes
 
-    def process_firmware_matcher(self, matcher):
-        """Processes all interfaces matching the given criteria
+    def process_expected_versions(self, pci_matcher_lookup_table):
+        """Processes all matching rules
 
-        The matcher dictionary should contain the following strings:
+        where a matching rule is a dict with the following required fields:
 
         * vendor_id : a numeric pci vendor id
         * device_id: a numeric pci device id
         * firmware_version: expected firmware version
 
-        :param matcher: dictionary of matching criteria
+        :param pci_matcher_lookup_table: dictionary mapping pci_id to a
+            matching rule
         :return: tuple with the structure (successes, failures) where,
-                 *successes* and *failures* are dictionaries mapping the
-                 interface name to a NICFirmwareVerifyResult
+            *successes* and *failures* are dictionaries mapping the
+            interface name to a NICFirmwareVerifyResult
         """
-        device_id = _get_expected_field(matcher, "device_id")
-        vendor_id = _get_expected_field(matcher, "vendor_id")
-        expected_version = _get_expected_field(matcher, "firmware_version")
-        interface_to_version_map = self.get_firmware_mappings(vendor_id,
-                                                              device_id)
+
+        interfaces = self.get_interface_descriptors()
         successes = {}
         failures = {}
-        for interface_name, actual_version in interface_to_version_map.items():
+        assert type(self.get_interface_descriptors()) == list
+        for interface in interfaces:
+            actual_version = interface.firmware_version
+            interface_name = interface.name
+            pci_id = interface.pci_id
+            if pci_id not in pci_matcher_lookup_table:
+                LOG.warning(_MISSING_MATCHER_RULE
+                            .format(interface=interface_name, pci_id=pci_id))
+                continue
+            matcher = pci_matcher_lookup_table[pci_id]
+            expected_version = matcher["firmware_version"]
             if actual_version == expected_version:
                 LOG.debug("firmware version matches for interface: {}".format(
                     interface_name))
