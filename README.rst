@@ -79,6 +79,38 @@ node info is expected to be set:
     ]
   }
 
+You may discover <vendor_id>, <device_id> and <firmware_version> by running:
+
+.. code-block::
+
+    lshw -class network -numeric
+
+on a given node in the cluster. The following is an example output:
+
+.. code-block::
+
+  *-network
+       description: Ethernet interface
+       product: RTL8111/8168/8411 PCI Express Gigabit Ethernet Controller [10EC:8168]
+       vendor: Realtek Semiconductor Co., Ltd. [10EC]
+       physical id: 0
+       bus info: pci@0000:03:00.0
+       logical name: enp3s0
+       version: 06
+       serial: 90:2b:34:19:a8:7c
+       size: 1Gbit/s
+       capacity: 1Gbit/s
+       width: 64 bits
+       clock: 33MHz
+       capabilities: bus_master cap_list ethernet physical tp mii 10bt 10bt-fd 100bt 100bt-fd 1000bt 1000bt-fd autonegotiation
+       configuration: autonegotiation=on broadcast=yes driver=r8169 driverversion=2.3LK-NAPI duplex=full firmware=rtl8168e-3_0.0.4 03/27/12 ip=192.168.1.3 latency=0 link=yes multicast=yes port=MII speed=1Gbit/s
+       resources: irq:31 ioport:1000(size=256) memory:f0404000-f0404fff memory:f0400000-f0403fff
+
+The vendor and device ids are shown in the product line; in this example [10EC:8168],
+where 10ec and 8168 are the vendor and device ids respectively. The firmware version
+is shown in the configuration line; in this example the firmware version is:
+"rtl8168e-3_0.0.4 03/27/12".
+
 Below is an example of how to set the node info:
 
 .. code-block::
