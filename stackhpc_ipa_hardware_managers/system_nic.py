@@ -45,7 +45,6 @@ _HELP_MSG_EXAMPLE = (
     """firmware_version": "12.20.1019"}]'"""
 )
 
-_UEVENT_PCI_SLOT_NAME_PREFIX = "PCI_SLOT_NAME="
 
 LOG = log.getLogger()
 
@@ -67,13 +66,13 @@ def _parse_uevent(interface_line_pairs):
     # to the component after e.g given PCI_SLOT_NAME=0000:00:19.0\n,
     # the dictionary will contain: {"PCI_SLOT_NAME" : "0000:00:19.0"}
     result = {}
-    for interface, _line in interface_line_pairs:
-        line = iter(_line.rstrip())
+    for interface, line in interface_line_pairs:
+        remaining_chars = iter(line.rstrip())
         if interface not in result:
             result[interface] = {}
-        split = itertools.takewhile(lambda x: x != "=", line)
+        split = itertools.takewhile(lambda x: x != "=", remaining_chars)
         key = "".join(split)
-        value = "".join(line)
+        value = "".join(remaining_chars)
         result[interface][key] = value
     return result
 
@@ -337,9 +336,9 @@ class SystemNICHardwareManager(hardware.HardwareManager):
         """
 
         interfaces = self.get_interface_descriptors()
+        assert type(interfaces) == list
         successes = {}
         failures = {}
-        assert type(self.get_interface_descriptors()) == list
         for interface in interfaces:
             actual_version = interface.firmware_version
             interface_name = interface.name
