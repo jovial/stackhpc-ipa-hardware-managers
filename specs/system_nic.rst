@@ -42,7 +42,7 @@ order to negate operational differences, all of the devices should run the same
 version of the firmware. To ensure that this condition is enforced, the
 hardware manager must be given an expected firmware version; this will be
 compared against the version detected during cleaning. The expected version
-will provided to the manager together with the unique pci id to form a
+will provided to the manager together with the unique pci-id to form a
 so called matching rule.
 
 If a network card is present, and a matching rule exists with the same pci-id,
@@ -101,7 +101,8 @@ cleaing should always pass.
 Alternatives
 ------------
 
-* It is possible to carry on manually checking firmware versions
+* Use an 'update image' to flash all NIC firmware. This has the disadvantage
+  that it won't be performed everytime a node is returned to the pool.
 * It is possible to use the json output of `lshw` instead of `ethtool`
 
 
