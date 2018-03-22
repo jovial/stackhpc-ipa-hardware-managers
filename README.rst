@@ -106,10 +106,10 @@ on a given node in the cluster. The following is an example output:
        configuration: autonegotiation=on broadcast=yes driver=r8169 driverversion=2.3LK-NAPI duplex=full firmware=rtl8168e-3_0.0.4 03/27/12 ip=192.168.1.3 latency=0 link=yes multicast=yes port=MII speed=1Gbit/s
        resources: irq:31 ioport:1000(size=256) memory:f0404000-f0404fff memory:f0400000-f0403fff
 
-The vendor and device ids are shown in the product line; in this example [10EC:8168],
-where 10ec and 8168 are the vendor and device ids respectively. The firmware version
+The vendor and device ids are shown in the product line; in this example: `[10EC:8168]`,
+where *10ec* and *8168* are the vendor and device ids respectively. The firmware version
 is shown in the configuration line; in this example the firmware version is:
-"rtl8168e-3_0.0.4 03/27/12".
+`rtl8168e-3_0.0.4 03/27/12`.
 
 Below is an example of how to set the node info:
 
