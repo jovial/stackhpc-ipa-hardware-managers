@@ -26,6 +26,10 @@ from oslo_concurrency import processutils
 from oslo_log import log
 from oslo_utils import strutils
 
+_MATCHING_RULE_FAILED_SUMMARY_MSG_TEMPLATE = (
+    "When verifying NIC firmware, {failures} matching rule(s) failed "
+    "to produce a match. \n"
+)
 _MISSING_MATCHER_RULE = (
     "Not checking NIC firmware for {interface}. "
     "There was no rule for pci_id: {pci_id} set in "
@@ -44,7 +48,6 @@ _HELP_MSG_EXAMPLE = (
     """nic_firmware='[{"vendor_id": "15B3","device_id": " "1013","""
     """firmware_version": "12.20.1019"}]'"""
 )
-
 
 LOG = log.getLogger()
 
@@ -192,6 +195,18 @@ def _is_nic_verification_disabled(node):
         disable_check) if disable_check is not None else False
 
 
+def _matcher_to_hashable(matcher):
+    # we use a frozen set of key-value pairs so that the matchers are
+    # hashable, but in the future, if firmware-versions is made into a list
+    # we will have to convert that to a frozenset as well
+    return frozenset(matcher.iteritems())
+
+
+def _hashable_matcher_to_err_msg(matcher):
+    return ("The following NIC firmware matcher failed to match: {}"
+            .format(dict(matcher)))
+
+
 NICFirmwareVerifyResult = namedtuple(
     'NICFirmwareVerifyResult',
     'actual_version expected_version '
@@ -317,7 +332,27 @@ class SystemNICHardwareManager(hardware.HardwareManager):
                 "\n".join(error_msgs)
             )
 
+        self._verify_all_rules_matched(firmware_matchers, successes)
+
         return successes
+
+    @staticmethod
+    def _verify_all_rules_matched(firmware_matchers, successes):
+        successful_matchers = map(
+            lambda x: _matcher_to_hashable(x.matcher),
+            successes.itervalues()
+        )
+        all_matchers = map(
+            lambda x: _matcher_to_hashable(x),
+            firmware_matchers
+        )
+        non_matching = set(all_matchers) - set(successful_matchers)
+        if non_matching:
+            raise errors.CleaningError(
+                _MATCHING_RULE_FAILED_SUMMARY_MSG_TEMPLATE
+                .format(failures=len(non_matching)) +
+                "\n".join(map(_hashable_matcher_to_err_msg, non_matching))
+            )
 
     def _process_expected_versions(self, pci_matcher_lookup_table):
         """Processes all matching rules

@@ -13,6 +13,7 @@
 # under the License.
 
 import os
+import re
 import unittest
 
 from ironic_python_agent import errors
@@ -307,6 +308,42 @@ class TestSystemNICManager(unittest.TestCase):
         self.assertRaisesRegexp(
             errors.CleaningError,
             "The property 'nic_firmware' should be a list",
+            self.manager.verify_nic_firmware,
+            node,
+            None
+        )
+
+    @mock.patch.object(SystemNICHardwareManagerMock,
+                       'get_interface_descriptors')
+    def test_verify_nic_firmware_non_matching_rule_no_devices(
+            self, mock_manager):
+        # we spoof that no devices are found, all matchers fail
+        mock_manager.side_effect = lambda: []
+        node = get_dummy_node_info()
+        self._verify_non_matching_rule(node, expected_failures=1)
+
+    def test_verify_nic_firmware_non_matching_rule(self):
+        self._verify_non_matching_rule_helper(1)
+        self._verify_non_matching_rule_helper(2)
+        self._verify_non_matching_rule_helper(13)
+
+    def _verify_non_matching_rule_helper(self, failures):
+        node = get_dummy_node_info()
+        mismatchers = generate_fake_matchers(failures)
+        matchers = [get_dummy_nic_matcher()] + mismatchers
+        node["extra"]["nic_firmware"] = matchers
+        self._verify_non_matching_rule(
+            node,
+            expected_failures=failures
+        )
+
+    def _verify_non_matching_rule(self, node, expected_failures):
+        expected_msg = (system_nic._MATCHING_RULE_FAILED_SUMMARY_MSG_TEMPLATE
+                        .format(failures=expected_failures)
+                        )
+        self.assertRaisesRegexp(
+            errors.CleaningError,
+            re.escape(expected_msg),
             self.manager.verify_nic_firmware,
             node,
             None
